@@ -4,7 +4,7 @@
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
   *@Copyright (C) 2009 -  2013 Goma-Team
-  * last modified: 03.01.2013
+  * last modified: 04.01.2013
   * $Version 1.0
 */
 
@@ -99,10 +99,81 @@ class TreeRenderer extends Object {
 	*/
 	public static function getByClass($class, $parentID = 0, $params = array()) {
 		if(!ClassInfo::hasInterface($class, "TreeServer")) {
-			throwError(6, "Invalid Argument Error", "Tree-Class '".$this->treeclass."' is no TreeServer");
+			throwError(6, "Invalid Argument Error", "Tree-Class '".$class."' is no TreeServer");
 		}
 			
 		return new TreeRenderer(call_user_func_array(array($class, "generateTree"), array($parentID, $params)));
+	}
+	
+	/**
+	 * adds an expanded recordid
+	 *
+	 *@name addExpandedRecord
+	*/
+	public function addExpandedRecord($id) {
+		$this->expandedRecords[$id] = $id;
+	}
+	
+	/**
+	 * removes an expanded recordid
+	 *
+	 *@name removeExpandedRecord
+	*/
+	public function removeExpandedRecord($id) {
+		unset($this->expandedRecords[$id]);
+	}
+	
+	/**
+	 * adds an expanded nodeid
+	 *
+	 *@name addExpandedNode
+	*/
+	public function addExpandedNode($id) {
+		$this->expandedNodes[$id] = $id;
+	}
+	
+	/**
+	 * removes an expanded nodeid
+	 *
+	 *@name removeExpandedNode
+	*/
+	public function removeExpandedNode($id) {
+		unset($this->expandedNodes[$id]);
+	}
+	
+	/**
+	 * renders the tree
+	 *
+	 *@name renderTree
+	*/
+	public function renderTree($url = null) {
+		
+	}
+	
+	/**
+	 * wrap tree with given node
+	 *
+	 *@name wrap
+	*/
+	public function wrap(TreeNode $node) {
+		$node->setChildren($this->tree);
+		$this->tree = array($node);
+	}
+	
+	/**
+	 * adds a node to the tree
+	 *
+	 *@name add
+	 *@access public
+	*/
+	public function add($node) {
+		if(is_array($node)) {
+			foreach($node as $n) {
+				$this->tree[$n->nodeid] = $n;
+			}
+		} else {
+			$this->tree[$node->nodeid] = $node;
+		}
 	}
 }
 
@@ -200,8 +271,8 @@ class TreeNode extends Object {
 	*/
 	public function __construct($nodeid, $recordid, $title, $url, $class_name, $icon = null) {
 		
-		if(!ClassInfo::hasInterface($this->class_name, "TreeServer")) {
-			throwError(6, "Invalid Argument Error", "Tree-Class '".$this->treeclass."' is no TreeServer");
+		if(strtolower($class_name) != "treeholder" && !ClassInfo::hasInterface($class_name, "TreeServer")) {
+			throwError(6, "Invalid Argument Error", "Tree-Class '".$class_name."' is no TreeServer");
 		}
 		
 		$this->nodeid = $nodeid;
@@ -209,9 +280,9 @@ class TreeNode extends Object {
 		$this->title = $title;
 		$this->url = $url;
 		$this->treeclass = $class_name;
-		if(isset($icon) && $icon && $icon = ClassInfo::findFile($icon)) {
+		if(isset($icon) && $icon && $icon = ClassInfo::findFile($icon, $class_name)) {
 			$this->icon = $icon;
-		} else {
+		} else if(strtolower($class_name) != "treeholder") {
 			$this->icon = ClassInfo::getClassIcon($class_name);
 		}
 	}
@@ -259,6 +330,10 @@ class TreeNode extends Object {
 				$bg = "#ff7f74";
 				$color = "#8e0812";
 			break;
+			case "yellow":
+				$bg = "#ffdf98";
+				$color = "#ce9400";
+			break;
 			default:
 				$bg = "#d4f1ff";
 				$color = "#005888";
@@ -286,7 +361,11 @@ class TreeNode extends Object {
 	 *@access public
 	*/
 	public function setChildren($children) {
-		$this->children = $children;
+		// validate and stack it in
+		$this->children = array();
+		foreach($children as $k => $child) {
+			$this->children[$child->nodeid] = $child;
+		}
 	}
 	
 	/**
@@ -449,3 +528,5 @@ class TreeNode extends Object {
 		return $this->model;
 	}
 }
+
+class TreeHolder extends TreeNode {}

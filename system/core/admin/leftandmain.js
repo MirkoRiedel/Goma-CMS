@@ -2,8 +2,8 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 24.12.2012
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 04.01.2013
 */
 
 
@@ -139,13 +139,6 @@ var LaM_type_timeout;
 					updateWithSearch($(".treesearch form"),null, null, true);
 				}
 			}, 400);
-			
-			// legend-fade
-			if($(".treesearch form input[type=text]").val() == "") {
-				$(".legend").stop().fadeTo(300, 1);	
-			} else {
-				$(".legend").stop().fadeTo(300, 0.4);
-			}
 		});
 		
 		// sort
@@ -154,15 +147,6 @@ var LaM_type_timeout;
 		} else {
 			var sort = false;
 		}
-		
-		// legend
-		$(".legend").find(":checkbox").each(function(){
-			if(!$(this).prop("disabled")) {
-				$(this).click(function(){
-					reloadTree();
-				});
-			}
-		});
 		
 		setTimeout(function(){
 			// bind now!
@@ -196,7 +180,7 @@ var LaM_type_timeout;
 			}
 			
 			// set height for sidebar
-			var otherSideBar = $(".leftandmaintable tr > .left > .LaM_tabs > ul").outerHeight() + $(".leftandmaintable tr > .left > .LaM_tabs > .tree > .treesearch").outerHeight() + $(".leftandmaintable tr > .left > .LaM_tabs > .tree .legend").outerHeight() + 15;
+			var otherSideBar = $(".leftandmaintable tr > .left > .LaM_tabs > ul").outerHeight() + $(".leftandmaintable tr > .left > .LaM_tabs > .tree > .treesearch").outerHeight() + 15;
 			$(".leftandmaintable tr > .left > .LaM_tabs > .tree > .classtree > .treewrapper").css("height", tableHeight - otherSideBar - 30);
 			
 			if($(".headBar .leftbar_toggle").length > 0) {
@@ -300,19 +284,8 @@ var LaM_type_timeout;
 		// if no search
 		if(value == "") {
 			
-			var params = "";
-			$(".legend").find(":checkbox").each(function(){
-				if(!$(this).prop("disabled")) {
-					if($(this).prop("checked")) {
-						params += "&tree_params["+$(this).attr("name")+"]=1";
-					} else {
-						params += "&tree_params["+$(this).attr("name")+"]=0";
-					}
-				}
-			});
-			
 			$.ajax({
-				url: adminURI + "/updateTree/"+marked_node+"/?" + params,
+				url: adminURI + "/updateTree/"+marked_node+URLEND,
 				success: function(html, code, jqXHR) {
 					
 					renderResponseTo(html, treewrapper, jqXHR);
@@ -331,8 +304,6 @@ var LaM_type_timeout;
 					}
 				}
 			});
-			
-			$(".legend").stop().fadeTo(300, 1);	
 		} else {
 			
 			// if search

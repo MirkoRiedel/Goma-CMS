@@ -156,9 +156,7 @@ class adminItem extends AdminController implements PermProvider {
 		if(count($this->models) == 1)
 		{
 			$m = arraylib::first($this->models);
-			if(!is_object($this->model_inst))
-				$this->model_inst = $this->decorateModel(DataObject::get($m, $this->where), array(), $this);
-			
+			$this->model_inst = $this->decorateModel(DataObject::get($m, $this->where), array(), $this);
 			$this->modelInstances = array($m => $this->model_inst);
 			
 			return $this->model_inst;

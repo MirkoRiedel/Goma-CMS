@@ -4,8 +4,8 @@
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
   *@Copyright (C) 2009 - 2013  Goma-Team
-  * last modified: 03.01.2013
-  * $Version 2.2.3
+  * last modified: 04.01.2013
+  * $Version 2.3
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -73,14 +73,6 @@ class LeftAndMain extends AdminItem {
 	public $colors = array();
 	
 	/**
-	 * icons
-	 *
-	 *@name icons
-	 *@access public
-	*/
-	public $icons = array("root" => "images/icons/fatcow16/world.png");
-	
-	/**
 	 * marked node
 	 *
 	 *@name marked
@@ -104,28 +96,21 @@ class LeftAndMain extends AdminItem {
 	protected $sort_field;
 	
 	/**
-	 * gets the icons from all classes and the $icons-var
+	 * tree
 	 *
-	 *@name getIcons
-	 *@access public
+	 *@name tree
 	*/
-	public function getIcons() {
-		$icons = $this->icons;
-		$icons["searchresult"] = "images/icons/fatcow16/magnifier.png";
-		foreach($this->models as $model) {
-			if(ClassInfo::hasStatic($model, "icon")) {
-				$icons[$model] = ClassInfo::findFile(ClassInfo::getStatic($model, "icon"), $model);
-			}
-			foreach(ClassInfo::getChildren($model) as $child) {
-				if(ClassInfo::getClassIcon($child)) {
-					$icons[$child] = ClassInfo::getClassIcon($child);
-				}
-			}
-		}
-		
-		return $icons;
-	}
+	public $tree;
 	
+	/**
+	 * init tree
+	 *
+	 *@name Init
+	*/
+	public function Init() {
+		$this->createTree();
+		parent::Init();
+	}
 	
 	/**
 	 * gets the title of the root node
@@ -135,16 +120,6 @@ class LeftAndMain extends AdminItem {
 	*/
 	public function getRootNode() {
 		return parse_lang($this->root_node);
-	}
-	
-	/**
-	 * removes Resume-Cache
-	 *
-	 *@name removeResume
-	 *@access public
-	*/
-	public function removeResume() {
-		unset($_SESSION["goma_resume_".$this->class.""]);
 	}
 	
 	/**
@@ -175,8 +150,6 @@ class LeftAndMain extends AdminItem {
 		}
 		
 		// add resources
-		$filename = $this->getCSS();
-		Resources::add(CACHE_DIRECTORY . "/" . $filename, "css");
 		Resources::add("system/core/admin/leftandmain.js", "js", "tpl");
 		
 		if(isset($this->sort_field)) {
@@ -188,153 +161,55 @@ class LeftAndMain extends AdminItem {
 		$search = isset($_GET["searchtree"]) ? text::protect($_GET["searchtree"]) : "";
 		
 
-		Resources::addData("var adminURI = '".$this->adminURI()."'; var marked_node = '".$this->marked."';");
+		Resources::addData("var adminURI = '".$this->adminURI()."';");
 		
 		$data = $this->ModelInst();
-		
-		$this->ModelInst()->customise(array("legend" => $this->legend()));
 		
 		if(defined("LAM_CMS_ADD"))
 			$this->ModelInst()->addmode = 1;
 		
-		$output = $data->customise(array("CONTENT"	=> $content, "activeAdd" => $this->getParam("model"), "SITETREE" => $this->createTree(), "searchtree" => $search, "ROOT_NODE" => $this->getRootNode()))->renderWith($this->baseTemplate);
+		if($this->getRootNode()) {
+			$node = new TreeNode("root", null, $this->getRootNode(), BASE_SCRIPT . $this->namespace . URLEND, "TreeHolder", "images/icons/fatcow16/world.png");
+			$node->setChildren($this->tree->tree);
+			$this->tree->tree = array($node);
+		}
 		
-		$_SESSION[$this->class . "_LaM_marked"] = $this->marked;
+		$output = $data->customise(array("CONTENT"	=> $content, "activeAdd" => $this->getParam("model"), "SITETREE" => $this->createTree(), "searchtree" => $search, "ROOT_NODE" => $this->getRootNode()))->renderWith($this->baseTemplate);
 		
 		// parent-serve
 		return parent::serve($output);
 	}
-	
-	/**
-	 * gets css-code from colors and icons
-	 *
-	 *@name getCSS
-	 *@access public
-	*/
-	public function getCSS() {
-		$filename = "left_and_main_on_the_fly_".$this->class.".css";
-		if(!file_exists(ROOT . CACHE_DIRECTORY . "/" . $filename)) {
-			$css = "";
-			$retinaCSS = "";
-			foreach($this->getIcons() as $class => $icon) {
-				$retinaPath = substr($icon, 0, strrpos($icon, ".")) . "@2x" . substr($icon, strrpos($icon, "."));
-				if(file_exists($retinaPath)) {
-					$retinaCSS .= '.'.$class.' span { background-image: url(../../'.$retinaPath.') !important; background-size: 16px 16px }';
-				}
-				$css .= '.'.$class.' span { background-image: url(../../'.$icon.') !important }';
-			}
-			
-			foreach($this->colors as $class => $data) {
-				$css .= '.'.$class.' { color: '.$data["color"].' !important; }';
-			}
-			
-			if(Object::method_exists($this->tree_class, "provideTreeParams")) {
-				$params = Object::instance($this->tree_class)->provideTreeParams();
-				foreach($params as $class => $data) {
-					$css .= '.'.$class.' {';
-					foreach($data["css"] as $key => $value) {
-						$css .= $key . ': ' . $value . ";\n";
-					}
-					$css .= "}";
-				}
-			}
-			
-			$wholecss = $css . "\n\n/* here goes some retina-stuff */
-@media
-only screen and (-webkit-min-device-pixel-ratio: 2),
-only screen and (   min--moz-device-pixel-ratio: 2),
-only screen and (     -o-min-device-pixel-ratio: 2/1) { 
-  ".$retinaCSS."
-}";
-			
-			FileSystem::write(ROOT . CACHE_DIRECTORY . "/" . $filename, $wholecss);
-			unset($file, $css);
-		}
-		return $filename;	
-	}
-	
+
 	/**
 	 * creates the Tree
 	 *
 	 *@name createTree
 	 *@access public
 	*/
-	public function createTree($search = "", $marked = null) {
-		$tree_class = $this->tree_class;
-		if($tree_class == "") {
-			throwError(6, 'PHP-Error', "Failed to load \$tree_class! Please define \$tree_class in ".$this->class."");
-		}
-		
-		if(isset($_GET["searchtree"])) {
-			$search = $_GET["searchtree"];
-		} else if(isset($_POST["searchtree"])) {
-			$search = $_POST["searchtree"];
-		}
-		
-		$object = Object::instance($tree_class);
-		
-		if(empty($search)) {
-			$search_parentid = 0;
-		} else {
-			$search_parentid = array($search);
-		}
-		
-		if(isset($_GET["tree_params"]) && is_array($_GET["tree_params"])) {
-			if(!isset($_SESSION[$this->class . "_tree_params"])) $_SESSION[$this->class . "_tree_params"] = array();
-			$params = array_merge($_SESSION[$this->class . "_tree_params"], $_GET["tree_params"]);
-			$_SESSION[$this->class . "_tree_params"] = $params;
-			
-		} else if(isset($_SESSION[$this->class . "_tree_params"]) && is_array($_SESSION[$this->class . "_tree_params"])) {
-			$params = $_SESSION[$this->class . "_tree_params"];
-		} else {
-			$params = array();
-		}
-		
-		if(!isset($marked))
-			$marked = $this->marked;
-		
-		if(count($this->models) > 1) {
-			$default_tree = $object->renderTree($this->adminURI() . "model/\$class_name/\$id/edit" . URLEND, $marked, $search_parentid, $params, false);
-		} else {
-			$default_tree = $object->renderTree($this->adminURI() . "record/\$id/edit" . URLEND, $marked, $search_parentid, $params, false);
-		}
-		
-		if($marked == "0") {
-			$marked = "marked";
-		} else {
-			$marked = "";
-		}
-		
-		if(!empty($search)) {
-			return '<ul class="tree">
-							<li class="expanded last" id="tree_'.$this->class.'">
-								<span class="a  '.$marked.'">
-									<span class="b">
-										<a nodeid="0" class="treelink searchresult" href="'.$this->adminURI() .'"><span>'.lang("result", "result").'</span></a>
-									</span>
-								</span>
-								<ul class="rootnode">
-									'.$default_tree.'
-								</ul>
-							</li>
-							
-						</ul>';
-		} else {
-			return '<ul class="tree">
-							<li class="expanded last" id="tree_'.$this->class.'">
-								<span class="a '.$marked.'">
-									<span class="b">
-										<a nodeid="0" class="treelink root" href="'.$this->adminURI() .'"><span>'.$this->getRootNode().'</span></a>
-									</span>
-								</span>
-								<ul class="rootnode">
-									'.$default_tree.'
-								</ul>
-							</li>
-							
-						</ul>';
+	public function createTree($search = "") {
+		$this->tree = TreeRenderer::getByClass($this->tree_class);
+		if(isset($_SESSION["expanded_" . $this->tree_class])) {
+			if(is_array($_SESSION["expanded_" . $this->tree_class])) {
+				foreach($_SESSION["expanded_" . $this->tree_class] as $id) {
+					$this->tree->addExpandedRecord($id);
+				}
+			} else {
+				$this->tree->addExpandedRecord($_SESSION["expanded_" . $this->tree_class]);
+			}
 		}
 	}
+	
+	/**
+	 * sets all treenodes to given node expanded
+	 *
+	 *@name setExpanded
+	 *@access public
+	*/
+	public function setExpanded($id) {
+		$this->tree->addExpandedRecord($id);
+		$_SESSION["expanded_" . $this->tree_class] = $id;
+	}
+	
 	/**
 	 * gets updated data of tree for searching or normal things
 	 *
@@ -366,6 +241,8 @@ only screen and (     -o-min-device-pixel-ratio: 2/1) {
 		if($model = $this->save($data)) {
 			// notify the user
 			Notification::notify($model->class, lang("successful_saved", "The data was successfully written!"), lang("saved"));
+			
+			$this->setExpanded($model["id"]);
 			
 			$response->exec("if(getInternetExplorerVersion() <= 7 && getInternetExplorerVersion() != -1) { var href = '".BASE_URI . $this->adminURI()."/record/".$model->id."/edit".URLEND."'; if(location.href == href) location.reload(); else location.href = href; } else { reloadTree(function(){ LoadTreeItem('".$model["class_name"] . "_" . $model["id"]."'); }); }");
 			return $response;
@@ -406,30 +283,6 @@ only screen and (     -o-min-device-pixel-ratio: 2/1) {
 	}
 	
 	/**
-	 * gets the options for add
-	 *
-	 *@name legend
-	 *@access public
-	*/
-	public function legend() {
-		$data = $this->colors;
-		$arr = array();
-		foreach($data as $class => $data) {
-			$arr[] = array("class"	=> $class, "title"	=> parse_lang($data["name"]));
-		}
-		if(Object::method_exists($this->tree_class, "provideTreeParams")) {
-				$params = Object::instance($this->tree_class)->provideTreeParams();
-				foreach($params as $class => $data) {
-					if(isset($_SESSION[$this->class . "_tree_params"][$class])) 
-						$data["default"] = $_SESSION[$this->class . "_tree_params"][$class];
-					
-					$arr[] = array("class" => $class, "title" => parse_lang($data["title"]), "checkbox" => true, "checked" => $data["default"]);
-				}
-			}
-		return new ViewAccessAbleData($arr);
-	}
-	
-	/**
 	 * publishes data for editing a site via ajax
 	 *
 	 *@name ajaxSave
@@ -443,6 +296,8 @@ only screen and (     -o-min-device-pixel-ratio: 2/1) {
 			// notify the user
 			Notification::notify($model->class, lang("successful_published", "The data was successfully published!"), lang("published"));
 			
+			$this->setExpanded($model["id"]);
+			
 			$response->exec("if(getInternetExplorerVersion() <= 9 && getInternetExplorerVersion() != -1) { var href = '".BASE_URI . $this->adminURI()."/record/".$model->id."/edit".URLEND."'; if(location.href == href) location.reload(); else location.href = href; } else {reloadTree(function(){ LoadTreeItem('".$model["class_name"] . "_" . $model["id"]."'); });}");
 			return $response;
 		} else {
@@ -450,22 +305,6 @@ only screen and (     -o-min-device-pixel-ratio: 2/1) {
 			$response->exec($dialog);
 			return $response;
 		}
-	}
-	
-	/**
-	 * decorate model
-	 *
-	 *@name decorateModel
-	 *@access public
-	 *@param object - model
-	 *@param array additional
-	 *@param object|null controller
-	*/
-	public function decorateModel($model, $add = array(), $controller = null) {
-		$add["types"] = $this->Types();
-		$add["legend"] = $this->Legend();
-		
-		return parent::decorateModel($model, $add, $controller);
 	}
 	
 	/**
@@ -491,7 +330,7 @@ only screen and (     -o-min-device-pixel-ratio: 2/1) {
 	*/
 	public function decorateRecord(&$record) {
 		if(!$record->getVersion()) $record->version = "state";
-		$this->marked = $record->class_name . "_" . $record->recordid;
+		$this->setExpanded($record->id);
 	}
 	
 	/**

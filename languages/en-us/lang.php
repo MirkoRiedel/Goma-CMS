@@ -554,6 +554,10 @@ $lang = array(
 	"wrapper_page"			=> "list with subpages",
 	
 	"toggle_navigation"		=> "toggle navigation",
-	"toggle_sidebar"		=> "toggle sidebar"
+	"toggle_sidebar"		=> "toggle sidebar",
+	
+	/* states in tree */
+	"modified"				=> "mofified",
+	"new"					=> "new"
 
 );

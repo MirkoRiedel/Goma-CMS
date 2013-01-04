@@ -10,7 +10,7 @@
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
 
-class Pages extends DataObject implements PermProvider, HistoryData, Notifier
+class Pages extends DataObject implements PermProvider, HistoryData, Notifier, TreeServer
 {
 		/**
 		 * name
@@ -1102,6 +1102,12 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 			foreach($this->children() as $child) {
 				$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
 				
+				if(!$child->everPublished()) {
+					$node->addBubble(lang("new"), "blue");
+				} else if(!$child->isPublished()) {
+					$node->addBubble(lang("modified"), "yellow");
+				}
+				
 				if($child->children()->count() > 5) {
 					$node->setChildrenAjax(true, $params);
 				} else if($child->children()->count() > 0) {
@@ -1134,11 +1140,20 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 				foreach($data as $child) {
 					$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
 					
+					if(!$child->everPublished()) {
+						$node->addBubble(lang("new"), "blue");
+					} else if(!$child->isPublished()) {
+						$node->addBubble(lang("modified"), "yellow");
+					}
+				
+					
 					if($child->children()->count() > 5) {
 						$node->setChildrenAjax(true);
 					} else {
 						$node->setChildren($child->generateSubTree($params));
 					}
+					
+					$nodes[] = $node;
 				}
 			} else {
 				if(is_object($parent)) {
@@ -1156,8 +1171,27 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 			
 			if(PROFILE) Profiler::unmark("pages::generateTree");
 			
+			
 			return $nodes;
 		}
+		
+		/**
+		 * generates a tree which was generates because of search
+		 *
+		 *@name generateSearchTree
+		 *@access public
+		 *@param string - search-expression
+		 *@param parentID
+		 *@param params - custom params for the tree
+		*/
+		public static function generateSearchTree($search, $parentID = null, $params = array()) {}
+		
+		/**
+		 * this returns a list of methods which are supported as params
+		 *
+		 *@name getParams
+		*/
+		public function getParams() {}
 		
 		/**
 		 * TREE-API v2

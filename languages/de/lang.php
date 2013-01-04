@@ -555,5 +555,9 @@ $lang = array(
 	"wrapper_page"			=> "Liste mit Unterseiten",
 	
 	"toggle_navigation"		=> "Navigation umschalten",
-	"toggle_sidebar"		=> "Seitenleiste umschalten"
+	"toggle_sidebar"		=> "Seitenleiste umschalten",
+	
+	/* states in tree */
+	"modified"				=> "Bearbeitet",
+	"new"					=> "Neu"
 );

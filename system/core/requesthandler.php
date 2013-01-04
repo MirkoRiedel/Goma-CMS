@@ -163,6 +163,7 @@ class RequestHandler extends Object
 						
 						$class = get_parent_class($class);
 				}
+				
 				return $this->handleAction("index");
 		}
 		
@@ -192,6 +193,7 @@ class RequestHandler extends Object
 				
 				$this->extendHasAction($action, $hasAction);
 				$this->callExtending("extendHasAction", $action, $hasAction);
+				
 				
 				return $hasAction;
 		}

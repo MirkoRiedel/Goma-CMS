@@ -3,9 +3,9 @@
   *@package goma cms
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 25.12.2012
-  * $Version 2.0.7
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 04.01.2013
+  * $Version 2.1
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -123,6 +123,34 @@ class contentAdmin extends LeftAndMain
 			{
 					parent::redirectback($param, $value);
 			}
+	}
+	
+	/**
+	 * sets all treenodes to given node expanded
+	 *
+	 *@name setExpanded
+	 *@access public
+	*/
+	public function setExpanded($id) {
+		$data = DataObject::get("pages", array("id" => $id));
+		if(Permission::check("ADMIN_CONTENT")) 
+			$data->setVersion("state");
+		
+		// check if exists
+		if($data->count() == 0) {
+			return false;
+		} else {
+			$data = $data->first();
+		}
+		
+		// mark all parent nodes, too
+		$_SESSION["expanded_" . $this->treeclass] = array();
+		while($data->parent) {
+			$this->tree->addExpandedRecord($data->id);
+			$_SESSION["expanded_" . $this->treeclass][] = $data->id;
+			
+			$data = $data->parent;
+		}
 	}
 	
 	/**

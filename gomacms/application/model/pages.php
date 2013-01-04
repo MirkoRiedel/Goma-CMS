@@ -3,9 +3,9 @@
   *@package goma cms
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 21.12.2012
-  * $Version 2.4.7
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 01.01.2013
+  * $Version 2.5
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -38,11 +38,9 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 									'mainbartitle' 		=> 'varchar(200)',
 									'googletitle'		=> "varchar(200)",
 									'title' 			=> 'varchar(200)',
-									'data' 				=> 'text',
+									'data' 				=> 'HTMLtext',
 									'sort'				=> 'int(8)',
 									'search'			=> 'int(1)',
-									'editright'			=> 'HTMLtext',
-									'editright'			=> 'text',
 									'meta_description'	=> 'varchar(200)',
 									'meta_keywords'		=> 'varchar(200)');
 									
@@ -65,6 +63,16 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 		 *@var array
 		*/
 		public $has_many = array('children' => 'pages');
+		
+		/**
+		 * link-tracking
+		 *
+		 *@name many_many
+		 *@access public
+		*/
+		public $many_many = array(
+			"UploadTracking"	=> "Uploads"
+		);
 		
 		/**
 		 * searchable fields
@@ -192,7 +200,7 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 		*/
 		public function getParentType()
 		{
-				if(($this->parentid == 0 || $this->parentid == "") && in_array("pages", $this->allowed_parents()) && (Permission::check("PAGES_WRITE") && Permission::check("PAGES_PUBLISH")))
+				if(($this->parentid == 0 || $this->parentid == "") && in_array("pages", $this->allowed_parents()))
 				{
 						return "root";
 				} else
@@ -588,8 +596,20 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 				$form->useStateData = true;
 				$this->queryVersion = "state";
 				
+				// render head-bar
+				$html .= '<div class="headBar"><a href="#" class="leftbar_toggle" title="{$_lang_toggle_sidebar}"><img src="system/templates/images/appbar.list.png" alt="{$_lang_show_sidebar}" /></a><span class="'.$this->class.' pageType"><span>'.convert::raw2text(ClassInfo::getClassTitle($this->class));
+				
+				// title in head-bar
+				if($this->title)
+					$html .= ': <strong>'.convert::raw2text($this->title).'</strong>';
+				
+				// end of title in head-bar
+				$html .= ' </span></span>';
+				
+				// version-state-status
 				if($this->id != 0 && isset($this->data["stateid"]) && $this->data["stateid"] !== null) {
-					$html = "<div class=\"pageinfo versionControls\">";
+					
+					$html .= '<div class="pageinfo versionControls">';
 					
 					if($this->isPublished()) {
 						$html .= '<div class="state"><div class="draft">'.lang("draft", "draft").'</div><div class="publish active">'.lang("published", "published").'</div></div>';
@@ -606,9 +626,12 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 					}
 					$html .= '</div><div style="clear:right;"></div>';
 					
-					$form->add($links = new HTMLField('links', $html));
-					$links->container->addClass("hidden");
 				}
+				
+				// end of headbar and add it to form
+				$html .= '</div>';
+				$form->add($links = new HTMLField('links', $html));
+				$links->container->addClass("hidden");
 				
 				define("EDIT_ID", $this->id);
 				

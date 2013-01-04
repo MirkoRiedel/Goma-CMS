@@ -1,13 +1,16 @@
 <?php
 /**
+  * this is a Basic class for all Models that need DataBase-Connection
+  * it creates tables based on db-fields, has-one-, has-many- and many-many-connections
+  * it gets data and makes it available as normal attributes
+  * it can write and remove data
+  *
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * implementing datasets
-  *********
-  * last modified: 21.12.2012
-  * $Version: 4.6.15
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 01.01.2013
+  * $Version: 4.6.16
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -289,6 +292,7 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 		}
 		
 		$has_one = array_map("strtolower", $has_one);
+		$has_one = ArrayLib::map_key("strtolower", $has_one);
 		return $has_one;
 	}
 	
@@ -310,6 +314,7 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 		}
 		
 		$has_many = array_map("strtolower", $has_many);
+		$has_many = ArrayLib::map_key("strtolower", $has_many);
 		return $has_many;
 	}
 	
@@ -331,6 +336,7 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 		}
 		
 		$many_many = array_map("strtolower", $many_many);
+		$many_many = ArrayLib::map_key("strtolower", $many_many);
 		return $many_many;
 	}
 	
@@ -352,6 +358,7 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 		}
 		
 		$belongs_many_many = array_map("strtolower", $belongs_many_many);
+		$belongs_many_many = ArrayLib::map_key("strtolower", $belongs_many_many);
 		return $belongs_many_many;
 	}
 	
@@ -1528,8 +1535,6 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 			$this->data["versionid"] = 0;
 		}
 		
-		$this->onBeforeWrite();
-		
 		if(isset(ClassInfo::$class_info[$this->class]["baseclass"]))
 			$baseClass = ClassInfo::$class_info[$this->class]["baseclass"];
 		else
@@ -1550,24 +1555,28 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 				}
 			}
 			
+			$this->onBeforeWrite();
+			
 			$command = "insert";
 			
 			// get new data
 			$newdata = $this->data;
 		} else {
 			// get old record
-			$data = DataObject::get($baseClass, array("versionid" => $this->versionid));
+			$data = DataObject::get_one($baseClass, array("versionid" => $this->versionid));
 			
-			if($data->count() > 0) {
+			if($data) {
 				// check rights
 				if(!$forceWrite)
 					if(!$this->canWrite($this))
 						if($snap_priority == 2 && !$this->canPublish($this))
 							return false;
 				
+				$this->onBeforeWrite();
+				
 				$command = "update";
-				$newdata = array_merge($data->first()->ToArray(), $this->data);
-				$this->data = $data->first()->ToArray();
+				$newdata = array_merge($data->ToArray(), $this->data);
+				$this->data = $data->ToArray();
 				$newdata["created"] = $data["created"]; // force
 				$newdata["autorid"] = $data["autorid"];
 				$oldid = $data->versionid;
@@ -1863,6 +1872,27 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 		if($this->has_many)
 			foreach($this->has_many as $name => $class)
 			{
+				if(isset($this->data[$name]) && is_object($this->data[$name]) && is_a($this->data[$name], "HasMany_DataObjectSet")) {	
+					$key = array_search($this->class, ClassInfo::$class_info[$class]["has_one"]);
+					if($key === false)
+					{
+							$c = $this->class;
+							while($c = strtolower(get_parent_class($c)))
+							{
+									if($key = array_search($c, ClassInfo::$class_info[$class]["has_one"]))
+									{
+											break;
+									}
+							}
+					}
+					if($key === false)
+					{
+							return false;
+					}
+					$this->data[$name]->setRelationENV($name, $key . "id", $this->ID);
+					if(!$this->data[$name]->write($forceInsert, $forceWrite, $snap_priority))
+						return false;
+				} else {
 					if(isset($this->data[$name]) && !isset($this->data[$name . "ids"]))
 						$this->data[$name . "ids"] = $this->data[$name];
 					if(isset($this->data[$name . "ids"]) && is_array($this->data[$name . "ids"]))
@@ -1892,7 +1922,8 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 								$editdata->write(false, true, $snap_priority);
 								unset($editdata);
 							}				
-					}						
+					}	
+				}					
 			}
 			
 	
@@ -3292,6 +3323,8 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 				ClassInfo::write();
 			}
 			
+			if(PROFILE) Profiler::mark("DataObject::buildQuery hairy");
+			
 			$baseClass = $this->baseClass;
 			$baseTable = $this->baseTable;
 			
@@ -3318,6 +3351,8 @@ abstract class DataObject extends ViewAccessableData implements PermProvider, Sa
 			}
 
 			$query = clone self::$query_cache[$this->baseClass];
+			
+			if(PROFILE) Profiler::unmark("DataObject::buildQuery hairy");
 			
 			if(is_array($filter)) {
 				if(isset($filter["versionid"])) {

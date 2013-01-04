@@ -25,7 +25,7 @@ var LaM_type_timeout;
 			return false;
 		});
 		
-		$(".leftbar_toggle").on("click touchend", function(){
+		$(document).on("click touchend", ".leftbar_toggle", function(){
 			if($(this).hasClass("active")) {
 				$(this).removeClass("active");
 				$(this).addClass("not_active");
@@ -198,6 +198,12 @@ var LaM_type_timeout;
 			// set height for sidebar
 			var otherSideBar = $(".leftandmaintable tr > .left > .LaM_tabs > ul").outerHeight() + $(".leftandmaintable tr > .left > .LaM_tabs > .tree > .treesearch").outerHeight() + $(".leftandmaintable tr > .left > .LaM_tabs > .tree .legend").outerHeight() + 15;
 			$(".leftandmaintable tr > .left > .LaM_tabs > .tree > .classtree > .treewrapper").css("height", tableHeight - otherSideBar - 30);
+			
+			if($(".headBar .leftbar_toggle").length > 0) {
+				$(".main > .leftbar_toggle").css("display", "none");
+			} else {
+				$(".main > .leftbar_toggle").css("display", "block");
+			}
 		}
 		
 		window.renderLeftSideBar = renderSideBar;

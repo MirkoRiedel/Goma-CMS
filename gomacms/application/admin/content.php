@@ -4,8 +4,8 @@
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
   *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 18.12.2012
-  * $Version 2.0.6
+  * last modified: 25.12.2012
+  * $Version 2.0.7
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -144,7 +144,7 @@ class contentAdmin extends LeftAndMain
 		foreach(ClassInfo::getChildren("page") as $page) {
 			if(ClassInfo::exists($page)) {
 				if(!Object::method_exists($page, "hidden") || call_user_func_array(array($page, "hidden"), array($page)) !== true)
-					$data[$page] = ClassInfo::getClassTitle($page);
+					$data[$page] = convert::raw2text(ClassInfo::getClassTitle($page));
 			}
 		}
 		
@@ -158,7 +158,7 @@ class contentAdmin extends LeftAndMain
 	 *@access public
 	*/
 	public function revert_changes() {
-		if(is_a($this->modelInst(), "DataObject") || $this->modelInst()->Count() == 1) {
+		if((is_a($this->modelInst(), "DataObject") || $this->modelInst()->Count() == 1)) {
 			if($this->confirm(lang("revert_changes_confirm", "Do you really want to revert changes and go back to the last published version?"))) {
 				$data = DataObject::get_one($this->modelInst()->class, array("id" => $this->model_inst->id));
 				if($data) {

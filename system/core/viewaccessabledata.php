@@ -9,9 +9,9 @@
   *@package goma
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 19.12.2012
-  * $Version 2.2.3
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 01.01.2013
+  * $Version 2.2.5
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -311,7 +311,7 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 			
 			// methods
 			if($this->isOffsetMethod($lowername)) {
-				$data = $this->callOffsetMethod($lowername, $args);
+				$data = call_user_func_array(array($this, "get" . $name), $args);
 			} else
 			
 			// data
@@ -360,11 +360,8 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 		 *@name makeObject
 		 *@access public
 		*/
-		public function makeObject($name, $data, $cachename = null) {
+		public function makeObject($name, $data) {
 			if(PROFILE) Profiler::mark("ViewAccessableData::makeObject");
-			
-			if(!isset($cachename))
-				$cachename = "1_" . $name;
 			
 			// if is already an object
 			if(is_object($data)) {
@@ -380,12 +377,8 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 			
 			// default object
 			} else {
-				if(isset($this->casting[$name])) {
-					$object = DBField::getObjectByCasting($this->casting[$name], $name, $data);
-				} else {
-					$c = ClassInfo::getStatic("viewaccessabledata", "default_casting");
-					$object = new $c($name, $data);
-				}
+				$casting = isset($this->casting[$name]) ? $this->casting[$name] : ClassInfo::getStatic($this->class, "default_casting");
+				$object = DBField::getObjectByCasting($casting, $name, $data);
 				
 				if(PROFILE) Profiler::unmark("ViewAccessableData::makeObject");
 				return $object;
@@ -426,23 +419,7 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 		public function isOffsetMethod($name) {
 			return (!in_array("get" . $name, self::$notViewableMethods) && Object::method_exists($this->class, "get" . $name));
 		}
-		
-		/**
-		 * checks if there is a method get + $name or $name
-		 * and calls it
-		 *
-		 *@name callOffsetMethod
-		 *@access public
-		 *@param string - name
-		 *@param array - args
-		*/
-		public function callOffsetMethod($name, $args) {
-			if(!in_array("get" . $name, self::$notViewableMethods) && Object::method_exists($this->class, "get" . $name)) {
-				return call_user_func_array(array($this, "get" . $name), $args);
-			} 
-			
-			return false;
-		}
+
 		/**
 		 * new __cancall
 		 *
@@ -613,8 +590,50 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 				return $this->__call($offset, array());
 		}
 		
-		
-		
+		/**
+		 * gets a var for template
+		 *
+		 *@name getTemplateVar
+		*/
+		public function getTemplateVar($var) {
+			if(PROFILE) Profiler::mark("ViewAccessableData::getTemplateVar");
+			
+			if(strpos($var, ".")) {
+				$currentvar = substr($var, 0, strpos($var, "."));
+				$remaining = substr($var, strpos($var, ".") + 1);
+			} else {
+				$currentvar = $var;
+				$remaining = "";
+			}
+			
+			$currentvar = trim(strtolower($currentvar));
+			$data = $this->getOffset($currentvar, array());
+			
+			if($remaining == "") {
+				if(is_object($data)) {
+					if(PROFILE) Profiler::unmark("ViewAccessableData::getTemplateVar");
+					return $data->forTemplate();
+				} else if(isset($this->casting[$currentvar])) {
+					if(PROFILE) Profiler::unmark("ViewAccessableData::getTemplateVar");
+					return $this->makeObject($currentvar, $data)->forTemplate();
+				} else {
+					if(PROFILE) Profiler::unmark("ViewAccessableData::getTemplateVar");
+					return $data;
+				}
+			} else {
+				if(is_object($data)) {
+					if(PROFILE) Profiler::unmark("ViewAccessableData::getTemplateVar");
+					return $data->getTemplateVar($remaining);
+				} else if(isset($this->casting[$currentvar])) {
+					if(PROFILE) Profiler::unmark("ViewAccessableData::getTemplateVar");
+					return $this->makeObject($currentvar, $data)->getTemplateVar($remaining);
+				} else {
+					log_error("Not-Recursive-Error: Argument ".$var." wasn't found because it's not recursive.");
+					return null;
+				}
+			}
+		}
+				
 		/**
 		 * to cutomise this data with own data for loops
 		 *@name customise
@@ -752,10 +771,11 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 		 *@param array - areas
 		 *@param expansion-name of you want to use the expansion-path too
 		*/
-		public function renderWith($view, $areas = array(), $expansion = null)
+		public function renderWith($view, $expansion = null)
 		{
-				return tpl::render($view,array(), $this, $areas, $expansion);
+				return tpl::render($view,array(), $this, $expansion);
 		}
+		
 		/**
 		 * bool - for IF in template
 		 *
@@ -853,7 +873,7 @@ class ViewAccessableData extends Object implements Iterator, ArrayAccess
 		 *@access public
 		*/
 		public function wasChanged() {
-			return $this->changed;
+			return ($this->changed || $this->data != $this->original);
 		}
 		
 		/**

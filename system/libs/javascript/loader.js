@@ -5,8 +5,8 @@
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
   *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 20.12.2012
-  * $Version 1.5.4
+  * last modified: 30.12.2012
+  * $Version 1.5.6
 */
 
 // prevent from being executed twice
@@ -563,10 +563,10 @@ if(typeof self.loader == "undefined") {
 			}
 			
 			// function if we click anywhere
-			mouseDownFunc = function(){
+			mouseDownFunc = function(e){
 				setTimeout(function(){		
 					if(mouseover === false) {
-						fn();
+						fn(e);
 					}
 				}, 10);
 			}
@@ -574,15 +574,17 @@ if(typeof self.loader == "undefined") {
 			if(exceptions) {
 				var i;
 				for(i in exceptions) {
-					$(exceptions[i]).on("mousedown", exceptionFunc);
 					$(exceptions[i]).on("mouseup", exceptionFunc);
-					$(exceptions[i]).on("touchstart", exceptionFunc);
+					$(exceptions[i]).on("mousedown", exceptionFunc);
 					$(exceptions[i]).on("touchend", exceptionFunc);
+					$(exceptions[i]).on("touchstart", exceptionFunc);
 				}
 			}
 			// init mouseover-events
-			$(document).on("mouseup", mouseDownFunc);
-			$(document).on("touchend", mouseDownFunc);
+			$(window).on("mouseup", mouseDownFunc);
+			$(window).on("mousedown", mouseDownFunc);
+			$(window).on("touchend", mouseDownFunc);
+			$(window).on("touchstart", mouseDownFunc);
 			$("iframe").each(function(){
 				var w = $(this).get(0).contentWindow;
 				if(w) {
@@ -627,7 +629,6 @@ if(typeof self.loader == "undefined") {
 				
 				if(originalOptions.type == "post" && originalOptions.async != false) {
 					jqXHR.fail(function(){
-						alert(originalOptions.url);
 						if(jqXHR.textStatus == "timeout") {
 							alert('Error while saving data to the server: \nThe response timed out.\n\n' + originalOptions.url);
 						} else if(jqXHR.textStatus == "abort") {
@@ -649,12 +650,19 @@ if(typeof self.loader == "undefined") {
 					});
 				}
 			}
-			
-			/*w.event_history = [];
-			w.$.orgajax = w.$.ajax;
-			w.$.ajax = function(url, options) {
-				var jqXHR = $.orgajax.call(this, url options);
 				
+	 		jqXHR.setRequestHeader("X-Referer", location.href);
+		});
+		
+		w.event_history = [];
+		$.orgajax = $.ajax;
+		$.ajax = function(url, options) {
+			
+			var w = window;
+			
+			var jqXHR = $.orgajax.apply(this, [url, options]);
+			
+			if(typeof options != "undefined" && options.noRequestTrack == null || url.noRequestTrack == null) {
 				var i = w.event_history.length;
 				w.event_history[i] = {done: [], fail: [], always: []};
 				
@@ -675,12 +683,33 @@ if(typeof self.loader == "undefined") {
 					w.event_history[i]["always"].push(fn);
 					return jqXHR._always(fn);
 				}
+			}
 				
-				return jqXHR;
-			}*/
-				
-	 		jqXHR.setRequestHeader("X-Referer", location.href);
-		});
+			return jqXHR;
+		};
+		
+		/* API to run earlier Requests with a bit different options */
+		w.runLastRequest = function(data) {
+			return w.runPreRequest(0, data);
+		}
+		w.runPreRequest = function(i, data) {
+			var a = self.request_history.length - 1 - parseInt(i);
+			var options = $.extend(self.request_history[a], data);
+			if(self.request_history[a].data != null && typeof self.request_history[a].data != "string" && typeof data.data == "object") {
+				options.data = $.extend(self.request_history[a].data, data.data);
+			}
+			var jqXHR = $.ajax(options);
+			for(i in w.event_history[a]["done"]) {
+				jqXHR.done(w.event_history[a]["done"][i]);
+			}
+			for(i in w.event_history[a]["always"]) {
+				jqXHR.always(w.event_history[a]["always"][i]);
+			}
+			for(i in w.event_history[a]["fail"]) {
+				jqXHR.fail(w.event_history[a]["fail"][i]);
+			}
+			return jqXHR;
+		}
 		
 	})(jQuery, window);
 	
@@ -708,13 +737,6 @@ if(typeof self.loader == "undefined") {
 	
 	function is_string(input) {
 	    return (typeof(input) == 'string');
-	}
-	
-	function getLastRequest() {
-		return self.request_history[self.request_history.length -1];
-	}
-	function getPreRequest(i) {
-		return self.request_history[self.request_history.length - 1 - parseInt(i)];
 	}
 	
 	
@@ -847,34 +869,39 @@ if(typeof self.loader == "undefined") {
     
 	// retina-support
 	$(function(){
-		var replace = function() {
-			if(true) { //getDevicePixelRatio() > 1.5) {
-				$("img").each(function(){ //.on("load", "img", function(){
-					var $this = $(this);
-					if($this.attr("data-retined") != "complete" && $this.attr("data-retina") && $this.width() != 0 && $this.height() != 0) {
-						if(IsImageOk($(this).get(0))) {
-							var img = new Image();
-							img.onload = function(){
-								$this.css("width", $this.width());
-								$this.css("height", $this.height());
-								$this.attr("src", $this.attr("data-retina"));
-								img.src = null;
+		if(getDevicePixelRatio() > 1.5) {
+			var replace = function() {
+				
+					$("img").each(function(){ //.on("load", "img", function(){
+						var $this = $(this);
+						if($this.attr("data-retined") != "complete" && $this.attr("data-retina") && $this.width() != 0 && $this.height() != 0) {
+							if(IsImageOk($(this).get(0))) {
+								var img = new Image();
+								img.onload = function(){
+									$this.css("width", $this.width());
+									$this.css("height", $this.height());
+									$this.attr("src", $this.attr("data-retina"));
+									img.src = null;
+								}
+								img.src = $this.attr("data-retina");
+								$this.attr("data-retined", "complete");
 							}
-							img.src = $this.attr("data-retina");
-							$this.attr("data-retined", "complete");
 						}
-					}
-				});
+					});
+				
 			}
+			replace();
+			window.retinaReplace = replace;
+			
+			document.addEventListener && document.addEventListener("DOMContentLoaded", replace, !1);
+		    	if (/WebKit/i.test(navigator.userAgent)) var t = setInterval(function () {
+		     	   /loaded|complete/.test(document.readyState) && replace();
+		   	 }, 10);
 		}
-		replace();
-		window.retinaReplace = replace;
-		
-		document.addEventListener && document.addEventListener("DOMContentLoaded", replace, !1);
-	    if (/WebKit/i.test(navigator.userAgent)) var t = setInterval(function () {
-	        /loaded|complete/.test(document.readyState) && replace();
-	    }, 10);
 	});
+	
+	if(typeof window.retinaReplace == "undefined")
+		window.retinaReplace = function(){};
 	
 	function IsImageOk(img) {
 	    // During the onload event, IE correctly identifies any images that

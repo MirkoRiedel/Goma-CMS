@@ -3,9 +3,9 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 12.12.2012
-  * $Version 2.2.2
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 03.01.2013
+  * $Version 2.2.3
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -117,11 +117,12 @@ class LeftAndMain extends AdminItem {
 				$icons[$model] = ClassInfo::findFile(ClassInfo::getStatic($model, "icon"), $model);
 			}
 			foreach(ClassInfo::getChildren($model) as $child) {
-				if(ClassInfo::hasStatic($child, "icon")) {
-					$icons[$child] = ClassInfo::findFile(ClassInfo::getStatic($child, "icon"), $child);
+				if(ClassInfo::getClassIcon($child)) {
+					$icons[$child] = ClassInfo::getClassIcon($child);
 				}
 			}
 		}
+		
 		return $icons;
 	}
 	

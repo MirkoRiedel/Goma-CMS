@@ -3,8 +3,8 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 -  2012 Goma-Team
-  * last modified: 19.12.12
+  *@Copyright (C) 2009 -  2013 Goma-Team
+  * last modified: 03.01.2013
   * $Version 1.0
 */
 
@@ -19,7 +19,7 @@ interface TreeServer {
 	 *@param parentID
 	 *@param params - custom params for the tree
 	*/
-	public function generateTree($parentID = null, $params = array());
+	public static function generateTree($parentID = null, $params = array());
 	
 	/**
 	 * generates a tree which was generates because of search
@@ -30,7 +30,7 @@ interface TreeServer {
 	 *@param parentID
 	 *@param params - custom params for the tree
 	*/
-	public function generateSearchTree($search, $parentID = null, $params = array());
+	public static function generateSearchTree($search, $parentID = null, $params = array());
 	
 	/**
 	 * this returns a list of methods which are supported as params
@@ -42,6 +42,36 @@ interface TreeServer {
 
 class TreeRenderer extends Object {
 	/**
+	 * tree-nodes
+	 *
+	 *@name tree
+	 *@access public
+	*/
+	public $tree;
+	
+	/**
+	 * array of marked nodes
+	 *
+	 *@name marked
+	 *@access public
+	*/
+	public $marked = array();
+	
+	/**
+	 * array of nodeids which should be expanded
+	 *
+	 *@name expandedNodes
+	*/
+	public $expandedNodes = array();
+	
+	/**
+	 * array of recordids which should be expanded
+	 *
+	 *@name expandedRecords
+	*/
+	public $expandedRecords = array();
+	
+	/**
 	 * constructor needs an array of TreeNode-Objects or a TreeNode-Object
 	 *
 	 *@name __construct
@@ -49,7 +79,30 @@ class TreeRenderer extends Object {
 	 *@param array|treenode
 	*/
 	public function __construct($tree) {
-		
+		if(is_object($tree) && is_a($tree, "TreeNode")) {
+			$this->tree = array($tree);
+		} else if(is_array($tree)) {
+			$this->tree = $tree;
+		} else {
+			throwError(6, "Invalid Argument Exception", "Tree seems invalid");
+		}
+	}
+	
+	/**
+	 * returns the tree-renderer by class and parentid and params
+	 *
+	 *@name getByClass
+	 *@access public
+	 *@param string - class
+	 *@param string - parentid
+	 *@param array - params
+	*/
+	public static function getByClass($class, $parentID = 0, $params = array()) {
+		if(!ClassInfo::hasInterface($class, "TreeServer")) {
+			throwError(6, "Invalid Argument Error", "Tree-Class '".$this->treeclass."' is no TreeServer");
+		}
+			
+		return new TreeRenderer(call_user_func_array(array($class, "generateTree"), array($parentID, $params)));
 	}
 }
 
@@ -112,7 +165,15 @@ class TreeNode extends Object {
 	 *
 	 *@name children
 	*/
-	protected $children = array();
+	protected $children;
+	
+	/**
+	 * params for ajax-children
+	 *
+	 *@name ajaxParams
+	 *@access protected
+	*/
+	protected $ajaxParams;
 	
 	/**
 	 * force on state for children:
@@ -124,12 +185,25 @@ class TreeNode extends Object {
 	public $childState;
 	
 	/**
+	 * you can put the model here
+	 *
+	 *@name model
+	 *@access public
+	*/
+	public $model;
+	
+	/**
 	 * generates a new treenode
 	 *
 	 *@name __construct
 	 *@access public
 	*/
 	public function __construct($nodeid, $recordid, $title, $url, $class_name, $icon = null) {
+		
+		if(!ClassInfo::hasInterface($this->class_name, "TreeServer")) {
+			throwError(6, "Invalid Argument Error", "Tree-Class '".$this->treeclass."' is no TreeServer");
+		}
+		
 		$this->nodeid = $nodeid;
 		$this->recordid = $recordid;
 		$this->title = $title;
@@ -138,8 +212,7 @@ class TreeNode extends Object {
 		if(isset($icon) && $icon && $icon = ClassInfo::findFile($icon)) {
 			$this->icon = $icon;
 		} else {
-			if(ClassInfo::hasStatic($class_name, "icon") && $icon = ClassInfo::findFile(ClassInfo::getStatic($class_name, "icon")))
-				$this->icon = $icon;
+			$this->icon = ClassInfo::getClassIcon($class_name);
 		}
 	}
 	
@@ -207,16 +280,29 @@ class TreeNode extends Object {
 	}
 	
 	/**
+	 * sets children
+	 *
+	 *@name setChildren
+	 *@access public
+	*/
+	public function setChildren($children) {
+		$this->children = $children;
+	}
+	
+	/**
 	 * sets children loading via Ajax
 	 *
 	 *@name setChildrenAjax
 	 *@access public
 	*/
-	public function setChildrenAjax($bool = true) {
-		if($bool && $this->children == array())
+	public function setChildrenAjax($bool = true, $params = array()) {
+		if($bool && $this->children == array()) {
 			$this->children = "ajax";
-		else if(!$bool && $this->children == "ajax")
+			$this->params = $params;
+		} else if(!$bool && $this->children == "ajax") {
 			$this->children = array();
+			$this->ajaxParams = null;
+		}
 	}
 	
 	/**
@@ -226,7 +312,10 @@ class TreeNode extends Object {
 	 *@access public
 	*/
 	public function addChild(TreeNode $child) {
-		if(is_array($this->children)) {
+		if($this->children != "ajax") {
+			if(!isset($this->children))
+				$this->children = array();
+			
 			$this->children[$child->nodeid] = $child;
 		} else {
 			throwError(6, "PHP-Error", "Could not add Child to node, because seems not as childable, maybe set to ajax?");
@@ -250,10 +339,32 @@ class TreeNode extends Object {
 	/**
 	 * gets all children
 	 *
+	 *@name Children
+	*/
+	public function Children() {
+		return $this->children;
+	}
+	
+	/**
+	 * gets all children
+	 *
 	 *@name getChildren
 	*/
 	public function getChildren() {
-		return $this->children;
+		return $this->children();
+	}
+	
+	/**
+	 * forces to get children
+	 *
+	 *@name forceChildren
+	*/ 
+	public function forceChildren() {
+		if($this->children == "ajax") {
+			return call_user_func_array(array($this->treeclass, "generateTree"), array($this->recordid, $this->ajaxParams));
+		} else {
+			return $this->Children();
+		}
 	}
 	
 	/**
@@ -287,11 +398,54 @@ class TreeNode extends Object {
 	}
 	
 	/**
+	 * returns the url for this treenode
+	 *
+	 *@name getURL
+	 *@access public
+	 *@param string - given url with parameters
+	*/
+	public function getURL($given = null) {
+		if(!isset($given))
+			$given = $this->url;
+		
+		$newurl = $given;
+		preg_match_all('/\$([a-zA-Z0-9_\-]+)/', $given, $matches);
+		foreach($matches[1] as $match) {
+			switch(strtolower($match)) {
+				case "id":
+				case "recordid":
+					$newurl = str_replace('$' . $match, $this->recordID, $newurl);
+				break;
+				case "nodeid":
+					$newurl = str_replace('$' . $match, $this->nodeid, $newurl);
+				break;
+				case "title":
+					$newurl = str_replace('$' . $match, $this->title, $newurl);
+				break;
+				case "class":
+				case "class_name":
+				case "classname":
+				case "treeclass":
+					$newurl = str_replace('$' . $match, $this->treeclass, $newurl);
+				break;
+				default:
+					$record = $this->record();
+					$newurl = str_replace('$' . $match, $record[$match], $newurl);
+				break;
+			}
+		}
+	}
+	
+	/**
 	 * returns the record
 	 *
 	 *@name record
 	*/
 	public function record() {
-		return DataObject::Get_by_id($this->treeclass, $this->recordid);
+		if(isset($this->model))
+			return $this->model;
+		
+		$this->model = DataObject::Get_by_id($this->treeclass, $this->recordid);
+		return $this->model;
 	}
 }

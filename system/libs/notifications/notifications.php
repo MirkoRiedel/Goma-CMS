@@ -3,9 +3,9 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 12.12.2012
-  * $Version 1.0
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 03.01.2013
+  * $Version 1.0.1
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -52,7 +52,7 @@ class Notification extends Object {
 		
 		if(!isset($title, $icon)) {
 			$title = lang("notification", "notification");
-			$icon = "images/icons/modernui/dark/48x48/appbar.notification.multiple.png";
+			$icon = ClassInfo::getClassIcon($class) ? ClassInfo::getClassIcon($class) : "images/icons/modernui/dark/48x48/appbar.notification.multiple.png";
 		}
 		
 		if($type == "notification") {

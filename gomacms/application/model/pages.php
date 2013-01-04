@@ -18,6 +18,11 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 		public static $cname = '{$_lang_content}';
 		
 		/**
+		 * icon
+		*/
+		public static $icon = "images/icons/fatcow16/file.png";
+		
+		/**
 		 * show read-only edit if not enough rights
 		*/
 		public $showWithoutRight = true;
@@ -1061,18 +1066,74 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier
 		}
 		
 		/**
+		 * generates the subtree for this page
+		 *
+		 *@name generateSubTree
+		 *@access public
+		 *@param params
+		*/
+		public function generateSubTree($params = array()) {
+			if(PROFILE) Profiler::mark("pages::generateSubTree");
+			
+			$nodes = array();
+			foreach($this->children() as $child) {
+				$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
+				
+				if($child->children()->count() > 5) {
+					$node->setChildrenAjax(true, $params);
+				} else if($child->children()->count() > 0) {
+					$node->setChildren($child->generateSubTree($params));
+				}
+			}
+			
+			if(PROFILE) Profiler::unmark("pages::generateSubTree");
+			
+			return $nodes;
+		}
+		
+		/**
 		 * generates the tree for this DataObject
 		 *
 		 *@name generateTree
 		 *@access public
 		*/
-		public function generateTree($parent = null, $params = array()) {
+		public static function generateTree($parent = null, $params = array()) {
 			if(PROFILE) Profiler::mark("pages::generateTree");
 			
 			$nodes = array();
 			
+			if($parent == 0) {
+				$data = DataObject::get("pages", array("parentid" => 0));
+				
+				if(Permission::check("ADMIN_CONTENT") && (!isset($params["deleted"]) || !$params["deleted"]) && (!isset($params["published"]) || !$params["published"])) 
+					$data->setVersion("state");
+				
+				foreach($data as $child) {
+					$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
+					
+					if($child->children()->count() > 5) {
+						$node->setChildrenAjax(true);
+					} else {
+						$node->setChildren($child->generateSubTree($params));
+					}
+				}
+			} else {
+				if(is_object($parent)) {
+					$data = $parent;
+				} else {
+					$data = DataObject::get("pages", array("id" => $parent));
+					
+					if(Permission::check("ADMIN_CONTENT") && (!isset($params["deleted"]) || !$params["deleted"]) && (!isset($params["published"]) || !$params["published"])) 
+						$data->setVersion("state");
+				}
+				
+				$nodes = $child->generateSubTree($params);
+			}
+			
 			
 			if(PROFILE) Profiler::unmark("pages::generateTree");
+			
+			return $nodes;
 		}
 		
 		/**

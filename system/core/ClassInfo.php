@@ -6,9 +6,9 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see "license.txt"
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 16.12.2012
-  * $Version 3.6.5
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 03.01.2013
+  * $Version 3.6.6
 */
 
 defined("IN_GOMA") OR die("<!-- restricted access -->"); // silence is golden ;)
@@ -640,7 +640,23 @@ class ClassInfo extends Object
 			
 			$c = new $class;
 			
-			return parse_lang($c->name);
+			if($c->name)
+				return parse_lang($c->name);
+			else
+				return null;
+		}
+		/**
+		 * gets the icon of a class
+		 *
+		 *@name getClassIcon
+		 *@access public
+		*/
+		public static function getClassIcon($class) {
+			if(self::hasStatic($class, "icon")) {
+				return self::findFile(self::getStatic($class, "icon"), $class);
+			}
+			
+			return null;
 		}
 		
 		/**

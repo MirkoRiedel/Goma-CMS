@@ -597,7 +597,7 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier, T
 				$this->queryVersion = "state";
 				
 				// render head-bar
-				$html .= '<div class="headBar"><a href="#" class="leftbar_toggle" title="{$_lang_toggle_sidebar}"><img src="system/templates/images/appbar.list.png" alt="{$_lang_show_sidebar}" /></a><span class="'.$this->class.' pageType"><span>'.convert::raw2text(ClassInfo::getClassTitle($this->class));
+				$html .= '<div class="headBar"><a href="#" class="leftbar_toggle" title="{$_lang_toggle_sidebar}"><img src="system/templates/images/appbar.list.png" alt="{$_lang_show_sidebar}" /></a><span class="'.$this->class.' pageType"><span style="background-image: url('.ClassInfo::getClassIcon($this->class).');">'.convert::raw2text(ClassInfo::getClassTitle($this->class));
 				
 				// title in head-bar
 				if($this->title)
@@ -1084,42 +1084,6 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier, T
 			);
 		}
 		
-		public function getSiteTree($search = "") {
-			return $this->renderTree("admin/content/record/\$id/edit", 0, array($search), true, false);
-		}
-		
-		/**
-		 * generates the subtree for this page
-		 *
-		 *@name generateSubTree
-		 *@access public
-		 *@param params
-		*/
-		public function generateSubTree($params = array()) {
-			if(PROFILE) Profiler::mark("pages::generateSubTree");
-			
-			$nodes = array();
-			foreach($this->children() as $child) {
-				$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
-				
-				if(!$child->everPublished()) {
-					$node->addBubble(lang("new"), "blue");
-				} else if(!$child->isPublished()) {
-					$node->addBubble(lang("modified"), "yellow");
-				}
-				
-				if($child->children()->count() > 5) {
-					$node->setChildrenAjax(true, $params);
-				} else if($child->children()->count() > 0) {
-					$node->setChildren($child->generateSubTree($params));
-				}
-			}
-			
-			if(PROFILE) Profiler::unmark("pages::generateSubTree");
-			
-			return $nodes;
-		}
-		
 		/**
 		 * generates the tree for this DataObject
 		 *
@@ -1138,7 +1102,7 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier, T
 					$data->setVersion("state");
 				
 				foreach($data as $child) {
-					$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/conten/record/" . $child->id . "/edit" . URLEND, $child->class);
+					$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/content/record/" . $child->id . "/edit" . URLEND, $child->class);
 					
 					if(!$child->everPublished()) {
 						$node->addBubble(lang("new"), "blue");
@@ -1176,6 +1140,38 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier, T
 		}
 		
 		/**
+		 * generates the subtree for this page
+		 *
+		 *@name generateSubTree
+		 *@access public
+		 *@param params
+		*/
+		public function generateSubTree($params = array()) {
+			if(PROFILE) Profiler::mark("pages::generateSubTree");
+			
+			$nodes = array();
+			foreach($this->children() as $child) {
+				$node = new TreeNode($child->class . "_" . $child->id, $child->id, $child->title, BASE_SCRIPT . "admin/content/record/" . $child->id . "/edit" . URLEND, $child->class);
+				
+				if(!$child->everPublished()) {
+					$node->addBubble(lang("new"), "blue");
+				} else if(!$child->isPublished()) {
+					$node->addBubble(lang("modified"), "yellow");
+				}
+				
+				if($child->children()->count() > 5) {
+					$node->setChildrenAjax(true, $params);
+				} else if($child->children()->count() > 0) {
+					$node->setChildren($child->generateSubTree($params));
+				}
+			}
+			
+			if(PROFILE) Profiler::unmark("pages::generateSubTree");
+			
+			return $nodes;
+		}
+		
+		/**
 		 * generates a tree which was generates because of search
 		 *
 		 *@name generateSearchTree
@@ -1192,371 +1188,6 @@ class Pages extends DataObject implements PermProvider, HistoryData, Notifier, T
 		 *@name getParams
 		*/
 		public function getParams() {}
-		
-		/**
-		 * TREE-API v2
-		 * this API renders trees more flexibel and with better performance
-		*/ 
-		
-		/**
-		 * gets the subtree from a given parentid or from 0, so from root
-		 *
-		 *@name getTree
-		 *@access public
-		 *@param numeric - parentid of subtree
-		 *@param array - fields
-		*/
-		public function getTree($parentid = 0, $fields = array(), $activenode = 0, $params = array())
-		{
-			if(PROFILE) Profiler::mark("pages::getTree");
-			
-			/* --- */
-			
-			$arr = array();
-			
-			// get ids that are NOT collapsed cause of current edit-node
-			$ids = array();
-			if(defined("EDIT_ID") && EDIT_ID != 0 && $d = DataObject::get_by_id("pages", EDIT_ID)) {
-				while($d->parent) {
-					$ids[] = $d->parent->id;
-					$d = $d->parent;
-				}
-			}
-			
-			// create filter
-			$where = array("parentid" => $parentid);
-			if(isset($params["deleted"]) && $params["deleted"]) {
-				$data = DataObject::get_Versioned($this, "group", $where);
-			} else {
-				$data = DataObject::get($this, $where);
-			}
-			
-			if(Permission::check("ADMIN_CONTENT") && (!isset($params["deleted"]) || !$params["deleted"])) $data->setVersion("state");
-			
-			foreach($data as $record) {
-				
-				$collapsed = null;
-				
-				if($record->id != $activenode && isset($params["published"]) && !$params["published"] && $record->isPublished() === true)
-					if(!isset($params["deleted"]) || !$params["deleted"] || $record->isDeleted() === false)
-						continue;
-					
-				if($record->id != $activenode && isset($params["edited"]) && !$params["edited"] && $record->isPublished() === false)
-					if(!isset($params["deleted"]) || !$params["deleted"] || $record->isDeleted() === false)
-						continue;
-				
-				if(isset($params["deleted"]) && $params["deleted"] && $record->isDeleted()) {
-					$state = "deleted";
-				}
-				
-				
-				
-				$mainbar = ($record["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-				if(!isset($state)) {
-					if($record->isPublished())	
-						$state = "published";
-					else
-						$state = "edited";
-				}
-				$class = "".$record["class_name"]. " page ".$mainbar . " " . $state;
-				
-				$where["parentid"] = $record->recordid;
-				// children
-				if(isset($params["deleted"]) && $params["deleted"]) {
-					$children = DataObject::get_Versioned($this, "group", $where);					
-				} else {
-					$children = DataObject::get_Versioned($this, "state", $where);
-				}
-				
-				$childcount = $children->count;
-				unset($children);
-				
-				if($childcount > 0) {
-					// we prefetch a maximum of 5 sites
-					if($childcount < 6 || in_array($record["recordid"], $ids)) {
-						$id = $record["recordid"];
-						if(PROFILE) Profiler::unmark("pages::getTree");
-						$children = $this->getTree($id, $fields, $activenode, $params);
-						if(PROFILE) Profiler::mark("pages::getTree");
-						if(in_array($record["recordid"], $ids)) {
-							$collapsed = false;
-						}
-					} else {
-						$children = "ajax";
-					}
-				} else {
-					$children = "";
-				}
-				
-				// get data
-				$arr[] = array(
-					"title" 		=> $record["title"],
-					"attributes"	=> array("class" => $class),
-					"data"			=> $record->ToArray(),
-					"children"		=> $children,
-					"collapsed"		=> $collapsed
-				);
-				
-				unset($state);
-			}
-			if(PROFILE) Profiler::unmark("pages::getTree");
-			
-			return $arr;
-		}
-		
-		/**
-		 * provides tree-arguments
-		 *
-		 *@name provideTreeParams
-		 *@access public
-		*/
-		public function provideTreeParams() {
-			return array(
-				"deleted" 	=> array(
-					"title"		=> '{$_lang_deleted_page}',
-					"default"	=> false,
-					"css"		=> array(
-						'text-decoration' 	=> 'line-through !important',
-						"color"				=> '#c60004 !important'
-					)
-				),
-				"published"	=> array(
-					"title"		=> '{$_lang_published_site}',
-					"default"	=> true,
-					"css"		=> array(
-					)
-				),
-				"edited"	=> array(
-					"title"		=> '{$_lang_edited_page}',
-					"default"	=> true,
-					"css"		=> array(
-						'font-style' => 'italic'
-					)
-				)
-			);
-		}
-		/**
-		 * gets the subtree from a given parentid or from 0, so from root
-		 *
-		 *@name searchTree
-		 *@access public
-		 *@param array - words
-		 *@param array - fields
-		*/
-		public function searchTree($words = array(), $fields = array(), $activenode = 0)
-		{
-			if(PROFILE) Profiler::mark("pages::searchTree");
-			
-			/* --- */
-			
-			$arr = array();
-		
-			$where = array();
-			
-			$data = DataObject::search_Object($this, $words, $where, array('('.$this->baseTable.'.id = "'.$this->version.'")', 'DESC'), array(), array(), false, "recordid");
-			$data->setVersion(false);
-			if(Permission::check("ADMIN_CONTENT")) $data->setVersion("state");
-			
-			$parentid_cache = array();
-			
-			foreach($data as $record) {
-				if($record["parentid"] == 0) {
-					if(!isset($arr["_" . $record["id"]])) {
-						if($record->first()->isDeleted()) {
-							$state = "deleted";
-						}
-						// get class-attribute
-						$mainbar = ($record["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-						if(!isset($state))
-							$state = ($record->isPublished()) ? "published" : "edited";
-						$class = "".$record["class_name"]. " page ".$mainbar . " " . $state;
-						unset($state);
-						
-						$arr["_" . $record["id"]] = array(
-							"title" 		=> $record["title"],
-							"attributes"	=> array("class" => $class),
-							"data"			=> $record->first()->ToArray(),
-							"collapsed"		=> false,
-							"collapsable"	=> false,
-							"children"		=> array()
-						);
-						
-						unset($class, $mainbar); // free memory
-					}
-				} else {
-					
-					$parentid = $record["parentid"];
-					if(isset($arr[$parentid])) { // we are on the second level of the tree
-						
-						if(!isset($arr["_" . $parentid]["children"]["_" . $record["id"]])) {
-							if($record->first()->isDeleted()) {
-								$state = "deleted";
-							}
-							// get class-attribute
-							$mainbar = ($record["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-							if(!isset($state))
-								$state = ($record->first()->isPublished()) ? "published" : "edited";
-							$class = "".$record["class_name"]. " page ".$mainbar . " " . $state;
-							unset($state);
-							
-							$arr["_" . $parentid]["children"]["_" . $record["recordid"]] = array(
-								"title" 		=> $record["title"],
-								"attributes"	=> array("class" => $class),
-								"data"			=> $record->first()->ToArray(),
-								"collapsed"		=> false,
-								"collapsable"	=> false,
-								"children"		=> array()
-							);
-							
-							unset($class, $mainbar); // free memory
-						}
-					
-					} else { // we are at the third or lower level of the tree, so we have to generate path to root
-						
-						// we have to draw the tree from this node to top
-						$to_insert = array($parentid => array($record));
-						$current_parent_id = $parentid;
-						// now read through data
-						while($current_parent_id != 0) {
-							
-							$data = DataObject::get($this, array("id" => $current_parent_id),array('('.$this->baseTable.'.id = "'.$this->version.'")', 'DESC'), array(), array(), false, "recordid");
-							$data->version = false;
-							if(Permission::check("ADMIN_CONTENT")) $data->version = "state";
-							
-							if(isset($arr["_" . $data["parentid"]]) || $data["parentid"] == 0) { // found
-								if($data["parentid"] != 0 && isset($arr["_" . $data["parentid"]])) {
-									// if isn't set
-									if(!isset($arr["_" . $data["parentid"]]["children"]["_" . $data["id"]])) {
-										if($data->first()->isDeleted()) {
-											$state = "deleted";
-										}
-										// get class-attribute
-										$mainbar = ($data["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-										if(!isset($state))
-											$state = ($data->first()->isPublished()) ? "published" : "edited";
-										$class = "".$data["class_name"]. " page ".$mainbar . " " . $state;
-										unset($state);
-										
-										$arr["_" . $data["parentid"]]["children"]["_" . $data["id"]] = array(
-											"title" 		=> $data["title"],
-											"attributes"	=> array("class" => $class),
-											"data"			=> $data->first()->ToArray(),
-											"collapsed"		=> false,
-											"collapsable"	=> false,
-											"children"		=> array()
-										);
-										
-										unset($class, $mainbar); // free memory
-										
-									}
-									
-																		// now insert $to_insert-array
-									$id = $data["id"];
-									if(!isset($arr["_" . $data["parentid"]]["children"]["_" . $data["id"]]["children"])) {
-										$arr["_" . $data["parentid"]]["children"]["_" . $data["id"]]["children"] = array();
-									}
-									
-									
-									$arr["_" . $data["parentid"]]["children"]["_" . $data["id"]]["children"] = array_merge_recursive_distinct($arr["_" . $data["parentid"]]["children"]["_" . $data["id"]]["children"],$this->generateFromToInsert($id, $to_insert));
-									unset($to_insert);
-									break;
-								} else { // parentid is 0
-									// if isn't set
-									if(!isset($arr["_" . $data["id"]])) {
-										if($data->first()->isDeleted()) {
-											$state = "deleted";
-										}
-										// get class-attribute
-										$mainbar = ($data["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-										if(!isset($state))
-											$state = ($data->first()->isPublished()) ? "published" : "edited";
-										$class = "".$data["class_name"]. " page ".$mainbar;
-										unset($state);
-										
-										$arr["_" . $data["id"]] = array(
-											"title" 		=> $data["title"],
-											"attributes"	=> array("class" => $class),
-											"data"			=> $data->first()->ToArray(),
-											"collapsed"		=> false,
-											"collapsable"	=> false,
-											"children"		=> array()
-										);
-										
-										unset($class, $mainbar); // free memory
-										
-									}
-									
-									// now insert $to_insert-array
-									$id = $data["id"];
-									if(!isset($arr["_" . $id]["children"])) {
-										$arr["_" . $id]["children"] = array();
-									}
-									
-									
-									$arr["_" . $id]["children"] = array_merge_recursive_distinct($arr["_" . $id]["children"], $this->generateFromToInsert($id, $to_insert));
-									unset($to_insert);
-									break;
-								}
-								
-								
-							} else { // add entry to to_insert-array and progress
-								$current_parent_id = $data["parentid"];
-								$to_insert[$data["parentid"]][] = $data;
-								unset($data);
-								continue;
-							}
-						}
-					}
-				}
-			}
-			if(PROFILE) Profiler::unmark("pages::searchTree");
-			return $arr;
-		}
-		
-		/**
-		 * this helper-function generates the array from the to_insert-array
-		 *
-		 *@name generateFromToInsert
-		 *@access protected
-		 *@param numeric - id to start
-		 *@param to_insert-array
-		*/
-		protected function generateFromToInsert($id, $to_insert) {
-			
-			$arr = array();
-			if(isset($to_insert[$id])) {
-				foreach($to_insert[$id] as $record) {
-					if(!$record["id"])
-						continue;
-					
-					if($record->first()->isDeleted()) {
-						$state = "deleted";
-					}				
-					// get class-attribute
-					$mainbar = ($record["mainbar"] == 1) ? "withmainbar" : "nomainbar";
-					if(!isset($state))
-						$state = ($record->first()->isPublished()) ? "published" : "edited";
-					$class = "".$record["class_name"]. " page ".$mainbar . " " . $state;
-					unset($state);
-					
-					$arr["_" . $record["id"]] = array(
-						"title" 		=> $record["title"],
-						"attributes"	=> array("class" => $class),
-						"data"			=> $record->first()->ToArray(),
-						"collapsed"		=> false,
-						"collapsable"	=> false,
-						"children"		=> $this->generateFromToInsert($record["id"], $to_insert)
-					);
-					
-					unset($class, $mainbar, $record); // free memory
-				}
-				return $arr;
-			} else
-			{
-				return array();
-			}
-			
-		}
 		
 		/**
 		 * gets the data object of a site of a given url

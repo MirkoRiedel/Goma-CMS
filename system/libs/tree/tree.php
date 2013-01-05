@@ -42,6 +42,13 @@ interface TreeServer {
 
 class TreeRenderer extends Object {
 	/**
+	 * unique name of this tree
+	 *
+	 *@name name
+	*/
+	public $name;
+	
+	/**
 	 * tree-nodes
 	 *
 	 *@name tree
@@ -78,7 +85,8 @@ class TreeRenderer extends Object {
 	 *@access public
 	 *@param array|treenode
 	*/
-	public function __construct($tree) {
+	public function __construct($name, $tree) {
+		$this->name = $name;
 		if(is_object($tree) && is_a($tree, "TreeNode")) {
 			$this->tree = array($tree);
 		} else if(is_array($tree)) {
@@ -97,12 +105,12 @@ class TreeRenderer extends Object {
 	 *@param string - parentid
 	 *@param array - params
 	*/
-	public static function getByClass($class, $parentID = 0, $params = array()) {
+	public static function getByClass($name, $class, $parentID = 0, $params = array()) {
 		if(!ClassInfo::hasInterface($class, "TreeServer")) {
 			throwError(6, "Invalid Argument Error", "Tree-Class '".$class."' is no TreeServer");
 		}
 			
-		return new TreeRenderer(call_user_func_array(array($class, "generateTree"), array($parentID, $params)));
+		return new TreeRenderer($name, call_user_func_array(array($class, "generateTree"), array($parentID, $params)));
 	}
 	
 	/**
@@ -142,15 +150,6 @@ class TreeRenderer extends Object {
 	}
 	
 	/**
-	 * renders the tree
-	 *
-	 *@name renderTree
-	*/
-	public function renderTree($url = null) {
-		
-	}
-	
-	/**
 	 * wrap tree with given node
 	 *
 	 *@name wrap
@@ -174,6 +173,83 @@ class TreeRenderer extends Object {
 		} else {
 			$this->tree[$node->nodeid] = $node;
 		}
+	}
+	
+	/**
+	 * renders the tree
+	 *
+	 *@name render
+	*/
+	public function render($url = null) {
+		Resources::add("tree.css", "css", "tpl");
+		
+		return $this->renderPoints($this->tree, $url);
+	}
+	
+	/**
+	 * renders a set of children to list-points
+	 *
+	 *@name renderPoints
+	 *@access protected
+	*/
+	public function renderPoints($nodes, $url = null) {
+		$list = new HTMLNode("ul", array("class" => "tree-list tree"));
+		
+		foreach($nodes as $node) {
+			$list->append($point = new HTMLNode("li", array("id" => "treenode_" . $node->nodeid, "class" => "treenode"), array(
+				$a = new HTMLNode("span", array("class" => "a", "title" => $node->title), array(
+					$b = new HTMLNode("span", array("class" => "b"), array(
+						$link = new HTMLNode("a", array(
+							"href" 		=> $node->getURL($url),
+							"class"		=> "nodelink " . implode(" ", $node->getClasses()),
+							"id"		=> "nodeid_" . $node->nodeid,
+							"nodeid"	=> $node->nodeid
+						), array(
+							$title = new HTMLNode("span", array("style" => "background-image: url(".$node->icon.")"), convert::raw2xml($node->title))
+						))
+					))
+				))
+			)));
+			
+			// check if expanded or collapsed
+			if($node->isExpanded() || in_array($node->nodeid, $this->expandedNodes) || in_array($node->recordID, $this->expandedRecords) ||(isset($_COOKIE["tree_" . $this->name . "_" . $node->nodeid]) && $_COOKIE["tree_" . $this->name . "_" . $node->nodeid] == 1)) {
+				$point->addClass("expanded");
+				$expanded = true;
+			} else {
+				$point->addClass("collapsed");
+			}
+			
+			if(!$node->isExpanded()) {
+				// append children and add hitarea
+				if((is_array($node->children()) && count($node->children()) > 0)) {
+					$b->prepend(new HTMLNode("div", array("class" => "hitarea"), array(
+						new HTMLNode("a", array("href" => "#"))
+					)));
+					
+					$point->append($this->renderPoints($node->forceChildren(), $url));
+				} else if($node->children() == "ajax") {
+					$b->prepend(new HTMLNode("div", array("class" => "hitarea"), array(
+						new HTMLNode("a", array("href" => "treeserver/getSubTree/" . $node->treeclass, "/" . $node->recordid . URLEND))
+					)));
+					
+					if(isset($expanded)) {
+						$point->append($this->renderPoints($node->forceChildren(), $url));
+					}
+				}
+			} else {
+				$point->append($this->renderPoints($node->forceChildren(), $url));
+			}
+			
+			// bubbles
+			if($node->bubbles()) {
+				$b->append($bubbles = new HTMLNode("div", array("class" => "bubbles")));
+				foreach($node->bubbles() as $bubble) {
+					$bubbles->append(new HTMLNode("div", array("class" => "bubble ".$bubble["color"]), convert::raw2xml($bubble["text"])));
+				}
+			}
+		}
+		
+		return $list;
 	}
 }
 
@@ -223,6 +299,23 @@ class TreeNode extends Object {
 	public $icon;
 	
 	/**
+	 * force on state for children:
+	 * - open or closed
+	 * null for cookie-based
+	 *
+	 *@name childState
+	*/
+	public $childState;
+	
+	/**
+	 * you can put the model here
+	 *
+	 *@name model
+	 *@access public
+	*/
+	public $model;
+	
+	/**
 	 * bubbles with different colors
 	 * for example: Modified, Submitted
 	 *
@@ -247,21 +340,12 @@ class TreeNode extends Object {
 	protected $ajaxParams;
 	
 	/**
-	 * force on state for children:
-	 * - open or closed
-	 * null for cookie-based
+	 * html-classes
 	 *
-	 *@name childState
+	 *@name htmlClasses
+	 *@access protected
 	*/
-	public $childState;
-	
-	/**
-	 * you can put the model here
-	 *
-	 *@name model
-	 *@access public
-	*/
-	public $model;
+	protected $htmlClasses = array();
 	
 	/**
 	 * generates a new treenode
@@ -321,26 +405,8 @@ class TreeNode extends Object {
 	 *@param color: green, yellow, red, blue, grey, orange
 	*/
 	public function addBubble($text, $color = "blue") {
-		switch($color) {
-			case "green":
-				$bg = "#9dffa2";
-				$color = "#098e00";
-			break;
-			case "red":
-				$bg = "#ff7f74";
-				$color = "#8e0812";
-			break;
-			case "yellow":
-				$bg = "#ffdf98";
-				$color = "#ce9400";
-			break;
-			default:
-				$bg = "#d4f1ff";
-				$color = "#005888";
-			break;
-		}
 		
-		$this->bubbles[md5($text)] = array("text" => $text, "bg" => $bg, "color" => $color);
+		$this->bubbles[md5($text)] = array("text" => $text, "color" => $color);
 	}
 	
 	/**
@@ -352,6 +418,17 @@ class TreeNode extends Object {
 	*/
 	public function removeBubble($text) {
 		unset($this->bubbles[md5($text)]);
+	}
+	
+	/**
+	 * returns all bubbles
+	 *
+	 *@name Bubbles
+	 *@access public
+	 *@param text
+	*/
+	public function bubbles() {
+		return $this->bubbles;
 	}
 	
 	/**
@@ -457,6 +534,16 @@ class TreeNode extends Object {
 	}
 	
 	/**
+	 * returns if is Collapsed
+	 *
+	 *@name isCollaped
+	 *@access public
+	*/
+	public function isCollapsed() {
+		return ($this->childState == "collapsed");
+	}
+	
+	/**
 	 * sets children expanded
 	 *
 	 *@name setCollapsed
@@ -464,6 +551,16 @@ class TreeNode extends Object {
 	*/
 	public function setExpanded() {
 		$this->childState = "expanded";
+	}
+	
+	/**
+	 * returns if is Expanded
+	 *
+	 *@name isExpanded
+	 *@access public
+	*/
+	public function isExpanded() {
+		return ($this->childState == "expanded");
 	}
 	
 	/**
@@ -513,6 +610,8 @@ class TreeNode extends Object {
 				break;
 			}
 		}
+		
+		return $newurl;
 	}
 	
 	/**
@@ -526,6 +625,36 @@ class TreeNode extends Object {
 		
 		$this->model = DataObject::Get_by_id($this->treeclass, $this->recordid);
 		return $this->model;
+	}
+	
+	/**
+	 * adds a html-class
+	 *
+	 *@name addClass
+	 *@access public
+	*/
+	public function addClass($class) {
+		$this->htmlClasses[$class] = $class;
+	}
+	
+	/**
+	 * rempves a html-class
+	 *
+	 *@name removeClass
+	 *@access public
+	*/
+	public function removeClass($class) {
+		unset($this->htmlClasses[$class]);
+	}
+	
+	/**
+	 * returns the HTML-Classes 
+	 *
+	 *@name getClasses
+	 *@access public
+	*/
+	public function getClasses() {
+		return $this->htmlClasses;
 	}
 }
 

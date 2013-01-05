@@ -170,11 +170,11 @@ class LeftAndMain extends AdminItem {
 		
 		if($this->getRootNode()) {
 			$node = new TreeNode("root", null, $this->getRootNode(), BASE_SCRIPT . $this->namespace . URLEND, "TreeHolder", "images/icons/fatcow16/world.png");
-			$node->setChildren($this->tree->tree);
-			$this->tree->tree = array($node);
+			$node->setExpanded();
+			$this->tree->wrap($node);
 		}
 		
-		$output = $data->customise(array("CONTENT"	=> $content, "activeAdd" => $this->getParam("model"), "SITETREE" => $this->createTree(), "searchtree" => $search, "ROOT_NODE" => $this->getRootNode()))->renderWith($this->baseTemplate);
+		$output = $data->customise(array("CONTENT"	=> $content, "activeAdd" => $this->getParam("model"), "SITETREE" => $this->tree->render(), "searchtree" => $search, "ROOT_NODE" => $this->getRootNode(), "types" => $this->types()))->renderWith($this->baseTemplate);
 		
 		// parent-serve
 		return parent::serve($output);
@@ -187,15 +187,21 @@ class LeftAndMain extends AdminItem {
 	 *@access public
 	*/
 	public function createTree($search = "") {
-		$this->tree = TreeRenderer::getByClass($this->tree_class);
-		if(isset($_SESSION["expanded_" . $this->tree_class])) {
-			if(is_array($_SESSION["expanded_" . $this->tree_class])) {
-				foreach($_SESSION["expanded_" . $this->tree_class] as $id) {
-					$this->tree->addExpandedRecord($id);
+		if(ClassInfo::hasInterface($this->tree_class, "TreeServer")) {
+			$this->tree = TreeRenderer::getByClass($this->class, $this->tree_class);
+			if(isset($_SESSION["expanded_" . $this->tree_class])) {
+				if(is_array($_SESSION["expanded_" . $this->tree_class])) {
+					foreach($_SESSION["expanded_" . $this->tree_class] as $id) {
+						$this->tree->addExpandedRecord($id);
+					}
+				} else {
+					$this->tree->addExpandedRecord($_SESSION["expanded_" . $this->tree_class]);
 				}
-			} else {
-				$this->tree->addExpandedRecord($_SESSION["expanded_" . $this->tree_class]);
 			}
+		} else {
+			$this->tree = new TreeRenderer($this->class, array(
+				new TreeNode(0, 0, "Tree is not supported with this version of " . ClassInfo::$appENV["app"]["name"] . ". Please update!", "", "TreeHolder", "images/icons/fatcow16/delete.png")
+			));
 		}
 	}
 	
@@ -317,7 +323,7 @@ class LeftAndMain extends AdminItem {
 		$data = $this->createOptions();
 		$arr = new DataSet();
 		foreach($data as $option => $title) {
-			$arr->push(array("value" => $option, "title" => $title));
+			$arr->push(array("value" => $option, "title" => $title, "icon" => ClassInfo::getClassIcon($option)));
 		}
 		return $arr;
 	}

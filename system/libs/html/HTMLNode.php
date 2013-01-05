@@ -3,9 +3,9 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 26.12.2012
-  * $Version 1.3.2
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 04.01.2013
+  * $Version 1.3.3
 */
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -502,10 +502,10 @@ class HTMLNode extends Object
 				{
 						if(_ereg('^[0-9]+$', $name))
 						{
-								$attr .= " ".$value."=\"".$value."\" ";
+								$attr .= " ".$value."=\"".convert::raw2text($value)."\" ";
 						} else
 						{
-								$attr .= " ".$name."=\"".$value."\" ";
+								$attr .= " ".$name."=\"".convert::raw2text($value) . "\" ";
 						}
 				}
 				return $attr;

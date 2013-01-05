@@ -3,9 +3,9 @@
   *@package goma framework
   *@link http://goma-cms.org
   *@license: http://www.gnu.org/licenses/gpl-3.0.html see 'license.txt'
-  *@Copyright (C) 2009 - 2012  Goma-Team
-  * last modified: 15.11.2012
-  * $Version 2.3
+  *@Copyright (C) 2009 - 2013  Goma-Team
+  * last modified: 04.01.2013
+  * $Version 2.3.1
 */   
 
 defined('IN_GOMA') OR die('<!-- restricted access -->'); // silence is golden ;)
@@ -239,6 +239,7 @@ class adminItem extends AdminController implements PermProvider {
 		return $this->selectModel(ArrayLib::firstkey($this->modelInstances), $onThis);
 			
 	}
+	
 	/**
 	 * decorates the given model with some needed vars
 	 *
@@ -270,6 +271,7 @@ class adminItem extends AdminController implements PermProvider {
 		$model->controller = $controller;
 		return $model;
 	}
+	
 	/**
 	 * we provide all methods from the controllerInst too
 	 *
